@@ -1,4 +1,3 @@
-# Donovan Agent
 
 ![Donovan Agent GitHub Banner](Donovan_Agent_GitHub_Banner.png)
 
