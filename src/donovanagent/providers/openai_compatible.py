@@ -97,10 +97,7 @@ class OpenAICompatibleProvider(LLMProvider):
         except httpx.HTTPStatusError as exc:
             raise ProviderError(f"Provider HTTP {exc.response.status_code}: {exc.response.text}") from exc
         except httpx.TimeoutException as exc:
-            raise ProviderError(
-                f"Request timed out after {self.timeout_seconds}s. "
-                "The model may still be loading â€” try again, or increase timeout_seconds in your config."
-            ) from exc
+            raise ProviderError("") from exc
         except httpx.HTTPError as exc:
             raise ProviderError(f"Provider request failed: {exc}") from exc
         data = response.json()

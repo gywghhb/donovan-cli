@@ -220,7 +220,9 @@ class DonovanAgentApp:
         except KeyboardInterrupt:
             self._show_turn_result("error", "[yellow]Generation interrupted.[/yellow]", None)
         except DonovanAgentError as exc:
-            self._show_turn_result("error", str(exc), None)
+            message = str(exc).strip()
+            if message:
+                self._show_turn_result("error", message, None)
         except Exception as exc:
             self._show_turn_result("error", f"{type(exc).__name__}: {exc}", None)
         finally:
