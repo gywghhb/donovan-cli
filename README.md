@@ -1,4 +1,3 @@
-# Donovan Agent
 
 ![Donovan Agent GitHub Banner](Donovan_Agent_GitHub_Banner.png)
 
@@ -6,7 +5,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)](#windows-notes)
 
-**Donovan Agent** is a terminal-native agentic assistant for developers. It can chat with an LLM provider, inspect and edit files, run shell commands, execute local Python, search the web, use browser automation, connect MCP servers, remember project context, manage checkpoints, and help work through real coding tasks from your command line.
+**Donovan Agent** is a terminal-native self-evolving agentic assistant for developers and AI enthusiasts. It can chat with an LLM provider, inspect and edit files, run shell commands, execute local Python, search the web, use browser automation, connect MCP servers, remember project context, manage checkpoints, and help work through real coding tasks from your command line.
 
 Developed by **Tudor Iustin**.
 
