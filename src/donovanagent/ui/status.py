@@ -49,9 +49,10 @@ class ActivityIndicator:
     workspace bottom bar stays visible at all times.
     """
 
-    def __init__(self, console: Console, workspace: str = "") -> None:
+    def __init__(self, console: Console, workspace: str = "", *, visible: bool = True) -> None:
         self.console = console
         self.workspace = workspace
+        self.visible = visible
         self._word: str = "Thinking"
         self._lock = threading.Lock()
         self._stop = threading.Event()
@@ -76,12 +77,16 @@ class ActivityIndicator:
 
     def __enter__(self) -> "ActivityIndicator":
         self._start_time = time.monotonic()
+        if not self.visible:
+            return self
         self._stop.clear()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
         return self
 
     def __exit__(self, *args: Any) -> None:
+        if not self.visible:
+            return
         self._stop.set()
         if self._thread:
             self._thread.join(timeout=1)

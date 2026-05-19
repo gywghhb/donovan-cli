@@ -7,6 +7,7 @@ import shutil
 import sqlite3
 import sys
 import threading
+import time
 from pathlib import Path
 
 from prompt_toolkit.application import get_app, in_terminal
@@ -61,6 +62,13 @@ from donovanagent.utils.platform import get_platform_info
 from donovanagent.utils.shell import resolve_shell
 
 
+PROMPT_TOP_PADDING_LINES = 1
+FOOTER_TOP_GAP_LINES = 2
+STATUS_TOP_PADDING_LINES = 1
+TURN_TOP_PADDING_LINES = 0
+TURN_BOTTOM_PADDING_LINES = 1
+
+
 def set_terminal_title(title: str = "Donovan Agent") -> None:
     """Set terminal tab title across all supported platforms."""
     import platform
@@ -99,6 +107,8 @@ class DonovanAgentApp:
         self._activity_enabled = True
         self._context_tokens = 0
         self._context_window = self.config.provider.context_window
+        self._status_word = "Thinking"
+        self._turn_started_at = 0.0
         self._turn_busy = threading.Event()
         self._turn_queue: queue.Queue[tuple[str, str] | None] = queue.Queue()
         self._turn_results: queue.Queue[str | None] = queue.Queue()
@@ -174,6 +184,8 @@ class DonovanAgentApp:
         directly from this thread using patch_stdout-compatible output."""
         loop = None
         try:
+            self._status_word = "Thinking"
+            self._turn_started_at = time.monotonic()
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.set_exception_handler(lambda loop, ctx: None)
@@ -190,8 +202,12 @@ class DonovanAgentApp:
             if attachments:
                 full_text = resolved_text + format_attachments(attachments)
 
+            def _set_status(word: str) -> None:
+                self._status_word = word
+                indicator.set_word(word)
+
             with ActivityIndicator(self.console, workspace=self.config.app.default_workspace) as indicator:
-                agent.state_callback = indicator.set_word
+                agent.state_callback = _set_status
                 agent.indicator = indicator
                 answer = agent.run_turn(session_id, full_text)
                 self._context_tokens = agent.last_context_tokens
@@ -223,15 +239,16 @@ class DonovanAgentApp:
         async def _display() -> None:
             try:
                 async with in_terminal():
-                    self.console.print()
+                    for _ in range(TURN_TOP_PADDING_LINES):
+                        self.console.print()
                     if kind == "ok":
                         if extra:
                             self.console.print(extra)
                         self.console.print(assistant_panel(content))
                     else:
                         self.console.print(error_panel(content))
-                    self.console.print()
-                    self.console.print()
+                    for _ in range(TURN_BOTTOM_PADDING_LINES):
+                        self.console.print()
             except Exception:
                 pass
 
@@ -244,15 +261,16 @@ class DonovanAgentApp:
             pass
 
         # Fallback: no app running, display directly
-        self.console.print()
+        for _ in range(TURN_TOP_PADDING_LINES):
+            self.console.print()
         if kind == "ok":
             if extra:
                 self.console.print(extra)
             self.console.print(assistant_panel(content))
         else:
             self.console.print(error_panel(content))
-        self.console.print()
-        self.console.print()
+        for _ in range(TURN_BOTTOM_PADDING_LINES):
+            self.console.print()
 
     def _schedule_next_turn(self) -> None:
         """Start the next queued turn if any."""
@@ -262,8 +280,7 @@ class DonovanAgentApp:
                 return
             sid, msg = item
             self._turn_busy.set()
-            t = threading.Thread(target=self._run_turn_thread, args=(sid, msg), daemon=True)
-            t.start()
+            self._run_turn_thread(sid, msg)
         except queue.Empty:
             pass
 
@@ -282,13 +299,18 @@ class DonovanAgentApp:
             mode = self.config.app.permission_mode
             backend = (self.agent.backend_manager.active_name
                        if self.agent is not None else "local")
-            busy = " [BUSY]" if self._turn_busy.is_set() else ""
             cw = max(self._context_window, 1)
             pct = min(100, round((self._context_tokens / cw) * 100, 1))
-            left = f"  {workspace}  | Mode: {mode}  Backend: {backend}{busy}"
+            left = f"  {workspace}  | Mode: {mode}  Backend: {backend}"
             right = f"  Context: {pct}%  "
             pad = max(1, shutil.get_terminal_size().columns - len(left) - len(right))
             return f"{left}{' ' * pad}{right}"
+
+        def _padded_toolbar() -> list[tuple[str, str]]:
+            return [
+                ("", "\n" * FOOTER_TOP_GAP_LINES),
+                ("", _toolbar()),
+            ]
 
         # Set a global asyncio exception handler to suppress Playwright tracebacks
         try:
@@ -301,9 +323,10 @@ class DonovanAgentApp:
             try:
                 self._asyncio_cleanup()
                 raw = session.prompt(
-                    HTML("<prompt>&gt; </prompt>"),
-                    bottom_toolbar=_toolbar,
-                    rprompt=HTML('<style bg="#1a1a1a" fg="#ffffff">  </style>'),
+                    HTML("\n" * PROMPT_TOP_PADDING_LINES + "<prompt>&gt; </prompt>"),
+                    bottom_toolbar=_padded_toolbar,
+                    rprompt="  ",
+                    refresh_interval=0.2,
                 )
                 text = raw.strip()
                 if len(text) > 1 and text[0] == text[-1] and text[0] in {"'", '"'}:
@@ -328,12 +351,12 @@ class DonovanAgentApp:
                 continue
             try:
                 assert self.session_id is not None
-                self.console.print()
+                for _ in range(STATUS_TOP_PADDING_LINES):
+                    self.console.print()
+                self._status_word = "Thinking"
+                self._turn_started_at = time.monotonic()
                 self._turn_busy.set()
-                t = threading.Thread(
-                    target=self._run_turn_thread, args=(self.session_id, text), daemon=True
-                )
-                t.start()
+                self._run_turn_thread(self.session_id, text)
             except DonovanAgentError as exc:
                 self._turn_busy.clear()
                 self.console.print(error_panel(str(exc)))

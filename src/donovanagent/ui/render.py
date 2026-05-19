@@ -375,7 +375,13 @@ def tools_used_panel(tool_names: list[str]) -> Panel | None:
         if name not in unique:
             unique.append(name)
     body = "\n".join(f"  {name}" for name in unique)
-    return Panel(Text(body, style="green"), title="[bold green]Tools used[/bold green]", border_style="green", box=box.ROUNDED)
+    return Panel(
+        Text(body, style="green"),
+        title="[bold green]Tools used[/bold green]",
+        border_style="green",
+        box=box.ROUNDED,
+        padding=(0, 1),
+    )
 
 
 def context_footer(used_tokens: int, context_window: int) -> Text:

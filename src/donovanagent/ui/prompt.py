@@ -234,8 +234,8 @@ def create_prompt_session(history_file: Path) -> PromptSession[str]:
                 "completion-menu.completion.current": "bg:#000000 #ffffff bold",
                 "completion-menu.meta.completion": "bg:#000000 #555555",
                 "completion-menu.meta.completion.current": "bg:#000000 #888888",
-                "bottom-toolbar": "bg:#1a1a1a #ffffff",
-                "bottom-toolbar.text": "bg:#1a1a1a #ffffff",
+                "bottom-toolbar": "noinherit bg:default fg:default noreverse",
+                "bottom-toolbar.text": "noinherit bg:default fg:default noreverse",
             }
         ),
         multiline=True,
