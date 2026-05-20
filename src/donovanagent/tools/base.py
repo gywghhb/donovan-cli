@@ -10,6 +10,7 @@ from donovanagent.config.schema import DonovanAgentConfig
 from donovanagent.memory.database import MemoryDatabase
 
 if TYPE_CHECKING:
+    from donovanagent.browser.companion import BrowserCompanionService
     from donovanagent.browser.service import BrowserService
     from donovanagent.mcp.manager import McpManager
     from donovanagent.subagents.manager import SubagentManager
@@ -42,6 +43,7 @@ class ToolExecutionContext:
     approval: "ApprovalManager"
     subagent_manager: SubagentManager | None = None
     browser_service: "BrowserService | None" = None
+    browser_companion: "BrowserCompanionService | None" = None
     mcp_manager: "McpManager | None" = None
 
 

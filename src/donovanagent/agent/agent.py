@@ -20,6 +20,7 @@ from donovanagent.agent.tool_protocol import (
 )
 from donovanagent.agent.user_skills import load_user_skill_files
 from donovanagent.browser import BrowserService
+from donovanagent.browser.companion import BrowserCompanionService
 from donovanagent.checkpoints import CheckpointManager
 from donovanagent.config.schema import DonovanAgentConfig
 from donovanagent.execution import BackendManager
@@ -210,6 +211,9 @@ class DonovanAgent:
 
         # Browser
         self.browser_service = BrowserService(config)
+        self.browser_companion = BrowserCompanionService(
+            __import__("pathlib").Path(config.memory.database_path).parent
+        )
 
         # Scheduler
         self.scheduler = SchedulerService(db, config)
@@ -906,6 +910,7 @@ class DonovanAgent:
             approval=self.approval,
             subagent_manager=self.subagent_manager,
             browser_service=self.browser_service,
+            browser_companion=self.browser_companion,
             mcp_manager=self.mcp_manager,
         )
         result = self.registry.execute(ctx, call.name, call.arguments, tool_call_id=call.id)

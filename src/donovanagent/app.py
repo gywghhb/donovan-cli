@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import asyncio
+import json
 import os
 import queue
 import shutil
@@ -37,6 +38,7 @@ from donovanagent.memory.manager import MemoryManager
 from donovanagent.memory.project_context import detect_project_context
 from donovanagent.providers import build_provider
 from donovanagent.providers.base import LLMProvider
+from donovanagent.product import ProductManager, ProductResult
 from donovanagent.skills import SkillManager
 from donovanagent.subagents import ROLE_PRESETS, SubagentRole
 from donovanagent.tools.approval import ApprovalManager
@@ -103,6 +105,7 @@ class DonovanAgentApp:
         self.approval = ApprovalManager(self.console, assume_yes=assume_yes)
         self.provider: LLMProvider | None = None
         self.agent: DonovanAgent | None = None
+        self.product = ProductManager(self.paths.data_dir, self.config.app.default_workspace)
         self.session_id: str | None = None
         self._activity_enabled = True
         self._context_tokens = 0
@@ -122,6 +125,7 @@ class DonovanAgentApp:
         _load_user_tools(self.registry, self.paths.config_dir, self.config.app.default_workspace)
         self.provider = None
         self.agent = None
+        self.product.set_workspace(self.config.app.default_workspace)
 
     def ensure_provider(self) -> LLMProvider:
         if self.provider is None:
@@ -186,6 +190,12 @@ class DonovanAgentApp:
         try:
             self._status_word = "Thinking"
             self._turn_started_at = time.monotonic()
+            self.product.record_timeline(
+                "turn_started",
+                text[:300],
+                session_id=session_id,
+                metadata={"retry_prompt": text},
+            )
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.set_exception_handler(lambda loop, ctx: None)
@@ -213,6 +223,26 @@ class DonovanAgentApp:
                 self._context_tokens = agent.last_context_tokens
                 self._context_window = agent.config.provider.context_window
             tools_panel = tools_used_panel(agent.last_tool_names)
+            if any(name.startswith("browser_") for name in agent.last_tool_names):
+                try:
+                    agent.browser_service.minimize()
+                    self.product.record_timeline(
+                        "browser_minimized",
+                        "Browser minimized after browser work completed.",
+                        session_id=session_id,
+                    )
+                except Exception as exc:
+                    self.product.record_timeline(
+                        "browser_minimize_failed",
+                        str(exc),
+                        session_id=session_id,
+                    )
+            self.product.record_timeline(
+                "turn_completed",
+                answer[:300],
+                session_id=session_id,
+                metadata={"tools": agent.last_tool_names},
+            )
             self._show_turn_result("ok", answer, tools_panel)
         except MaxIterationsReached:
             self._show_turn_result("error", "[dim]Reached the tool iteration limit. "
@@ -221,9 +251,21 @@ class DonovanAgentApp:
             self._show_turn_result("error", "[yellow]Generation interrupted.[/yellow]", None)
         except DonovanAgentError as exc:
             message = str(exc).strip()
+            self.product.record_timeline(
+                "error",
+                message or type(exc).__name__,
+                session_id=session_id,
+                metadata={"retry_prompt": text},
+            )
             if message:
                 self._show_turn_result("error", message, None)
         except Exception as exc:
+            self.product.record_timeline(
+                "error",
+                f"{type(exc).__name__}: {exc}",
+                session_id=session_id,
+                metadata={"retry_prompt": text},
+            )
             self._show_turn_result("error", f"{type(exc).__name__}: {exc}", None)
         finally:
             if loop is not None:
@@ -346,6 +388,10 @@ class DonovanAgentApp:
                 if not keep_going:
                     return
                 continue
+            auto_configured = self.product.auto_configure(text)
+            if auto_configured is not None:
+                self._print_product_result(auto_configured)
+                continue
             if self._turn_busy.is_set():
                 self.console.print("[yellow]Queueing message — agent is busy processing, will handle it next.[/yellow]")
                 assert self.session_id is not None
@@ -429,7 +475,10 @@ class DonovanAgentApp:
         elif name == "/clear":
             clear()
         elif name == "/doctor":
-            run_doctor(self.manager, self.console)
+            if rest == "ai":
+                self._handle_product_command("doctor-ai", "")
+            else:
+                run_doctor(self.manager, self.console)
         elif name == "/config":
             self.console.print(config_table(self.manager.sanitized(self.config)))
         elif name in ("/context",):
@@ -482,11 +531,107 @@ class DonovanAgentApp:
             self._handle_skill_delete(rest)
         elif name == "/skill_learn":
             self._handle_skill_learn()
+        elif name in {
+            "/timeline", "/replay", "/recipe", "/sandbox", "/profile",
+            "/contract", "/eval", "/graph", "/impact", "/pr", "/watch",
+            "/inbox", "/marketplace", "/memory-citations", "/recover",
+            "/router", "/stats", "/handoff", "/doctor-ai",
+            "/workspace-profile", "/agent-test",
+        }:
+            self._handle_product_command(name[1:], rest)
         else:
             self.console.print(error_panel(f"Unknown slash command: {name}"))
         return True
 
     # ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ New slash command handlers ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+
+    def _print_product_result(self, result: ProductResult) -> None:
+        self.console.print(info_panel(result.body, title=result.title))
+        if result.prompt:
+            self._run_product_prompt(result.prompt)
+
+    def _run_product_prompt(self, prompt: str) -> None:
+        if not prompt.strip():
+            return
+        if self.session_id is None:
+            self.start_session()
+        assert self.session_id is not None
+        if self._turn_busy.is_set():
+            self._turn_queue.put((self.session_id, prompt))
+            self.console.print(info_panel("Task queued."))
+            return
+        self._status_word = "Thinking"
+        self._turn_started_at = time.monotonic()
+        self._turn_busy.set()
+        self._run_turn_thread(self.session_id, prompt)
+
+    def _handle_product_command(self, command: str, rest: str) -> None:
+        self.product.set_workspace(self.config.app.default_workspace)
+        cmd = rest.strip()
+        if command == "timeline":
+            result = self.product.timeline()
+        elif command == "replay":
+            result = self.product.replay(self.session_id if cmd in {"", "last"} else cmd)
+        elif command == "recipe":
+            parts = cmd.split(maxsplit=2)
+            if parts and parts[0] == "create" and len(parts) >= 3:
+                result = self.product.create_recipe(parts[1], parts[2])
+            elif parts and parts[0] == "run" and len(parts) >= 2:
+                prompt = self.product.get_recipe_prompt(parts[1])
+                result = ProductResult("Recipe", f"Running recipe: {parts[1]}", prompt=prompt) if prompt else ProductResult("Recipe", f"Recipe not found: {parts[1]}")
+            else:
+                result = self.product.list_recipes()
+        elif command == "sandbox":
+            if cmd.startswith("start"):
+                result = self.product.start_sandbox(cmd[5:].strip() or "sandbox")
+            elif cmd.startswith("run "):
+                result = self.product.sandbox_run(cmd[4:].strip())
+            elif cmd == "diff":
+                result = self.product.sandbox_diff()
+            elif cmd == "promote":
+                result = self.product.close_sandboxes(promote=True)
+            elif cmd == "discard":
+                result = self.product.close_sandboxes(promote=False)
+            else:
+                result = self.product.sandbox_status()
+        elif command == "profile":
+            result = self.product.profile(cmd)
+        elif command == "contract":
+            result = self.product.create_contract(cmd) if cmd else self.product.list_contracts()
+        elif command == "eval":
+            result = self.product.evals(cmd)
+        elif command == "graph":
+            result = self.product.build_graph() if cmd == "build" else self.product.graph_query(cmd or "")
+        elif command == "impact":
+            ctx = detect_project_context(self.config.app.default_workspace)
+            result = self.product.impact(cmd, ctx.get("test_commands", []))
+        elif command == "pr":
+            result = self.product.pr_draft(cmd) if cmd else ProductResult("PR Draft", "Usage: /pr <goal>")
+        elif command == "watch":
+            result = self.product.watch(cmd)
+        elif command == "inbox":
+            result = self.product.inbox(cmd)
+        elif command == "marketplace":
+            result = self.product.marketplace(cmd, _skill_dir(self.config.app.default_workspace))
+        elif command == "memory-citations":
+            result = self.product.memory_citations(cmd)
+        elif command == "recover":
+            result = self.product.recover(cmd)
+        elif command == "router":
+            result = self.product.router(cmd)
+        elif command == "stats":
+            result = self.product.stats()
+        elif command == "handoff":
+            result = self.product.handoff(self.session_id)
+        elif command == "doctor-ai":
+            result = self.product.doctor_ai()
+        elif command == "workspace-profile":
+            result = self.product.workspace_profile(cmd)
+        elif command == "agent-test":
+            result = self.product.agent_test(cmd)
+        else:
+            result = ProductResult("Product Command", f"Unknown command: {command}")
+        self._print_product_result(result)
 
     def _handle_activity(self, rest: str) -> None:
         cmd = rest.strip().lower()
@@ -751,7 +896,12 @@ class DonovanAgentApp:
             self.console.print(error_panel(
                 "Browser commands:\n"
                 "  /browser open <url>\n"
+                "  /browser companion setup|start|status|active|snapshot|tabs|use|click|type|screenshot\n"
+                "  /browser connect [cdp_endpoint] [tab]\n"
+                "  /browser tabs\n"
+                "  /browser use <tab-index|title|url>\n"
                 "  /browser close\n"
+                "  /browser minimize\n"
                 "  /browser screenshot\n"
                 "  /browser text\n"
                 "  /browser url\n"
@@ -769,10 +919,58 @@ class DonovanAgentApp:
                     self.console.print(error_panel(str(exc)))
             else:
                 self.console.print(error_panel("Agent not initialized."))
+        elif cmd == "companion" or cmd.startswith("companion "):
+            self._handle_browser_companion(cmd[len("companion"):].strip())
+        elif cmd == "connect" or cmd.startswith("connect "):
+            if self.agent:
+                parts = cmd.split(maxsplit=2)
+                endpoint = parts[1] if len(parts) >= 2 and parts[1].startswith("http") else None
+                tab = parts[2] if endpoint and len(parts) >= 3 else parts[1] if len(parts) >= 2 and not endpoint else None
+                try:
+                    self.agent.browser_service.connect_existing(cdp_endpoint=endpoint, tab=tab)
+                    self.console.print(info_panel(
+                        f"Connected to existing tab:\n{self.agent.browser_service.current_url()}"
+                    ))
+                except Exception as exc:
+                    self.console.print(error_panel(str(exc)))
+            else:
+                self.console.print(error_panel("Agent not initialized."))
+        elif cmd == "tabs":
+            if self.agent:
+                try:
+                    tabs = self.agent.browser_service.list_tabs()
+                    if tabs:
+                        self.console.print(info_panel(
+                            "\n".join(f"{tab['index']}. {tab['title']} -> {tab['url']}" for tab in tabs),
+                            title="Browser Tabs",
+                        ))
+                    else:
+                        self.console.print(info_panel("No browser tabs exposed."))
+                except Exception as exc:
+                    self.console.print(error_panel(str(exc)))
+            else:
+                self.console.print(error_panel("Agent not initialized."))
+        elif cmd.startswith("use "):
+            if self.agent:
+                tab_text = cmd[4:].strip()
+                tab = int(tab_text) if tab_text.isdigit() else tab_text
+                try:
+                    self.agent.browser_service.use_tab(tab)
+                    self.console.print(info_panel(
+                        f"Using tab:\n{self.agent.browser_service.current_url()}"
+                    ))
+                except Exception as exc:
+                    self.console.print(error_panel(str(exc)))
+            else:
+                self.console.print(error_panel("Agent not initialized."))
         elif cmd == "close":
             if self.agent:
                 self.agent.browser_service.close()
                 self.console.print(info_panel("Browser closed."))
+        elif cmd == "minimize":
+            if self.agent:
+                self.agent.browser_service.minimize()
+                self.console.print(info_panel("Browser minimized."))
         elif cmd == "screenshot":
             if self.agent:
                 try:
@@ -800,6 +998,52 @@ class DonovanAgentApp:
                 self.console.print(info_panel("Page reloaded."))
         else:
             self.console.print(error_panel(f"Unknown browser command: {cmd}"))
+
+    def _handle_browser_companion(self, rest: str) -> None:
+        if not self.agent:
+            self.console.print(error_panel("Agent not initialized."))
+            return
+        companion = self.agent.browser_companion
+        parts = rest.split(maxsplit=2)
+        cmd = parts[0] if parts else "status"
+        try:
+            if cmd == "setup":
+                self.console.print(info_panel(companion.setup_instructions(), title="Browser Companion Setup"))
+            elif cmd == "start":
+                companion.start()
+                self.console.print(info_panel("Browser companion server started.", title="Browser Companion"))
+            elif cmd == "status":
+                status = companion.status()
+                self.console.print(info_panel("\n".join(f"{k}: {v}" for k, v in status.items()), title="Browser Companion"))
+            elif cmd == "active":
+                result = companion.command("active_tab")
+                self.console.print(info_panel(json.dumps(result, indent=2), title="Active Tab"))
+            elif cmd == "snapshot":
+                result = companion.command("snapshot")
+                self.console.print(info_panel(str(result.get("text") or result.get("error") or "")[:4000], title="Active Tab Snapshot"))
+            elif cmd == "tabs":
+                result = companion.command("list_tabs")
+                tabs = result.get("tabs") or []
+                self.console.print(info_panel(
+                    "\n".join(f"{tab.get('index')}. {tab.get('title')} -> {tab.get('url')}" for tab in tabs) or str(result.get("error", "No tabs.")),
+                    title="Browser Companion Tabs",
+                ))
+            elif cmd == "use" and len(parts) >= 2:
+                result = companion.command("use_tab", tab=parts[1])
+                self.console.print(info_panel(json.dumps(result, indent=2), title="Browser Companion"))
+            elif cmd == "click" and len(parts) >= 2:
+                result = companion.command("click", selector=parts[1])
+                self.console.print(info_panel(json.dumps(result, indent=2), title="Browser Companion"))
+            elif cmd == "type" and len(parts) >= 3:
+                result = companion.command("type", selector=parts[1], text=parts[2])
+                self.console.print(info_panel(json.dumps(result, indent=2), title="Browser Companion"))
+            elif cmd == "screenshot":
+                result = companion.command("screenshot")
+                self.console.print(info_panel("Captured." if result.get("success") else str(result.get("error")), title="Browser Companion"))
+            else:
+                self.console.print(error_panel("Usage: /browser companion setup|start|status|active|snapshot|tabs|use|click|type|screenshot"))
+        except Exception as exc:
+            self.console.print(error_panel(str(exc)))
 
     def _handle_checkpoint(self, rest: str) -> None:
         cmd = rest.strip()
@@ -1572,13 +1816,22 @@ HELP_PANEL = Panel(
         "/think on|off|status",
         "/activity on|off|compact|verbose",
         "/backend [local|docker|ssh]",
-        "/browser open|close|screenshot|text|url|back|reload",
+        "/browser open|connect|tabs|use|close|minimize|screenshot|text|url|back|reload",
         "/checkpoint list|show|diff|restore|delete",
         "/schedule list|remove|pause|resume|run",
         "/subagents create <role> \"<goal>\"  Spawn a subagent",
         "/subagents list              List all subagents",
         "/subagents kill <ID>         Terminate a subagent",
         "/subagents result <ID>       Show subagent result",
+        "/timeline | /replay [last|session_id]",
+        "/recipe create NAME PROMPT | /recipe run NAME",
+        "/sandbox start|run|diff|promote|discard",
+        "/profile create|use|lock NAME",
+        "/contract <goal> | /impact <query> | /graph build|QUERY",
+        "/eval create NAME PROMPT | /eval run NAME",
+        "/pr <goal> | /watch add TARGET | /watch check | /inbox add TASK | /inbox run",
+        "/marketplace install NAME | /recover [retry] | /router auto|manual",
+        "/stats | /handoff | /doctor ai | /workspace-profile | /agent-test",
         "/history", "/resume", "/clear", "/doctor", "/config", "/exit",
     ]),
     title="Slash commands",

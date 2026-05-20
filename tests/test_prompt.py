@@ -3,6 +3,7 @@
 from prompt_toolkit.completion import CompleteEvent
 from prompt_toolkit.document import Document
 
+from donovanagent.agent.prompts import SYSTEM_PROMPT
 from donovanagent.ui.prompt import SlashCommandCompleter
 
 
@@ -21,3 +22,10 @@ def test_slash_completion_works_anywhere() -> None:
 
 def test_normal_messages_do_not_autocomplete() -> None:
     assert completions_for("hey") == []
+
+
+def test_system_prompt_prefers_existing_browser_tabs() -> None:
+    assert "browser_connect_existing" in SYSTEM_PROMPT
+    assert "do not open a new browser first" in SYSTEM_PROMPT
+    assert "Browser Companion" in SYSTEM_PROMPT
+    assert "without starting a new browser" in SYSTEM_PROMPT

@@ -11,16 +11,30 @@ from donovanagent.tools.browser_control import (
     browser_back,
     browser_click,
     browser_close,
+    browser_companion_active_tab,
+    browser_companion_click,
+    browser_companion_list_tabs,
+    browser_companion_screenshot,
+    browser_companion_setup,
+    browser_companion_snapshot,
+    browser_companion_start,
+    browser_companion_status,
+    browser_companion_type,
+    browser_companion_use_tab,
+    browser_connect_existing,
     browser_current_url,
     browser_evaluate,
     browser_extract_links,
     browser_get_html,
+    browser_list_tabs,
+    browser_minimize,
     browser_open,
     browser_press,
     browser_reload,
     browser_screenshot,
     browser_snapshot,
     browser_type,
+    browser_use_tab,
 )
 from donovanagent.tools.code_execution import execute_python
 from donovanagent.tools.filesystem import list_directory, patch_file, read_file, search_files, write_file
@@ -457,6 +471,106 @@ def build_default_registry(config: DonovanAgentConfig) -> ToolRegistry:
             handler=browser_open,
         )
     )
+    companion_tools = [
+        ("browser_companion_setup", "Create the Donovan Edge/Chrome extension files and show simple install steps.", {}, browser_companion_setup),
+        ("browser_companion_start", "Start Donovan's local browser companion server for the installed extension.", {}, browser_companion_start),
+        ("browser_companion_status", "Show whether the browser companion server and extension are connected.", {}, browser_companion_status),
+        ("browser_companion_active_tab", "Read the active browser tab title and URL through the Donovan companion extension.", {}, browser_companion_active_tab),
+        ("browser_companion_snapshot", "Read the active browser tab text, selection, URL, title, and interactive elements through the companion extension.", {}, browser_companion_snapshot),
+        ("browser_companion_list_tabs", "List browser tabs visible to the companion extension.", {}, browser_companion_list_tabs),
+        ("browser_companion_screenshot", "Capture a visible-tab screenshot through the companion extension.", {}, browser_companion_screenshot),
+    ]
+    for name, description, parameters, handler in companion_tools:
+        registry.register(
+            ToolDefinition(
+                name=name,
+                description=description,
+                enabled_key="browser_tools.enabled",
+                parameters={"type": "object", "properties": parameters},
+                handler=handler,
+            )
+        )
+    registry.register(
+        ToolDefinition(
+            name="browser_companion_use_tab",
+            description="Switch the browser companion to a tab by index, title fragment, or URL fragment.",
+            enabled_key="browser_tools.enabled",
+            parameters={
+                "type": "object",
+                "properties": {"tab": {"description": "Tab index, title fragment, or URL fragment."}},
+                "required": ["tab"],
+            },
+            handler=browser_companion_use_tab,
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="browser_companion_click",
+            description="Click an element in the active tab through the companion extension.",
+            enabled_key="browser_tools.enabled",
+            parameters={
+                "type": "object",
+                "properties": {"selector": {"type": "string"}},
+                "required": ["selector"],
+            },
+            handler=browser_companion_click,
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="browser_companion_type",
+            description="Type into an element in the active tab through the companion extension.",
+            enabled_key="browser_tools.enabled",
+            parameters={
+                "type": "object",
+                "properties": {"selector": {"type": "string"}, "text": {"type": "string"}},
+                "required": ["selector", "text"],
+            },
+            handler=browser_companion_type,
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="browser_connect_existing",
+            description="Attach to an already-open Chrome/Edge/Chromium browser through a CDP endpoint and select an existing tab. Does not open a new browser or navigate away.",
+            enabled_key="browser_tools.enabled",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "cdp_endpoint": {
+                        "type": "string",
+                        "description": "Optional endpoint like http://127.0.0.1:9222. If omitted, Donovan probes common local debug ports.",
+                    },
+                    "tab": {
+                        "description": "Optional tab index, title fragment, or URL fragment to select.",
+                    },
+                },
+            },
+            handler=browser_connect_existing,
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="browser_list_tabs",
+            description="List open tabs exposed by the connected existing browser.",
+            enabled_key="browser_tools.enabled",
+            parameters={"type": "object", "properties": {}},
+            handler=browser_list_tabs,
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="browser_use_tab",
+            description="Switch Donovan to an existing browser tab by index, title fragment, or URL fragment.",
+            enabled_key="browser_tools.enabled",
+            parameters={
+                "type": "object",
+                "properties": {"tab": {"description": "Tab index, title fragment, or URL fragment."}},
+                "required": ["tab"],
+            },
+            handler=browser_use_tab,
+        )
+    )
     registry.register(
         ToolDefinition(
             name="browser_snapshot",
@@ -588,6 +702,15 @@ def build_default_registry(config: DonovanAgentConfig) -> ToolRegistry:
             enabled_key="browser_tools.enabled",
             parameters={"type": "object", "properties": {}},
             handler=browser_close,
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="browser_minimize",
+            description="Minimize the browser window without closing it. Use this when browser work is complete.",
+            enabled_key="browser_tools.enabled",
+            parameters={"type": "object", "properties": {}},
+            handler=browser_minimize,
         )
     )
     registry.register(

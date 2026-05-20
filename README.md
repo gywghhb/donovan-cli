@@ -102,9 +102,12 @@ donovan doctor
 - Local Python execution for scripts and analysis
 - Tavily web search integration
 - Browser automation with optional Playwright support
+- Browser Companion for working with already-open Edge and Chrome tabs without remote debugging
 - MCP integration for external tools, resources, and prompts
 - SQLite-backed sessions, messages, tool calls, audit logs, memories, and learned skills
 - Planning, thinking summaries, scheduled tasks, checkpoints, subagents, and activity stream
+- Product workflows for contracts, recipes, sandboxes, evals, workspace graphs, impact checks, PR summaries, watchers, inbox triage, routing, stats, handoffs, and recovery
+- Natural-language auto-configuration for users who do not want to edit config files by hand
 - Approval gates for risky tool use
 
 ## Providers
@@ -225,6 +228,25 @@ donovan update                  Show update instructions
 /subagents
 /skill
 /mcp
+/timeline
+/recipe
+/sandbox
+/profile
+/contract
+/eval
+/graph
+/impact
+/pr
+/watch
+/inbox
+/marketplace
+/recover
+/router
+/stats
+/handoff
+/doctor-ai
+/workspace-profile
+/agent-test
 /exit
 ```
 
@@ -268,7 +290,25 @@ Interactive MCP commands:
 
 ## Browser Automation
 
-Browser tools are optional and use Playwright. Install browser support with:
+Donovan supports two browser workflows.
+
+For users who want Donovan to work with the browser they already have open, use Browser Companion:
+
+```text
+/browser companion setup
+/browser companion start
+/browser companion active
+/browser companion snapshot
+/browser companion tabs
+/browser companion use <tab>
+/browser companion click <selector>
+/browser companion type <selector> <text>
+/browser companion screenshot
+```
+
+The setup command generates a local extension and opens the browser extension page. After the extension is loaded once, Donovan can inspect and interact with active Edge and Chrome tabs without launching a new browser or requiring remote debugging flags.
+
+For dedicated automation sessions, browser tools are optional and use Playwright. Install browser support with:
 
 ```bash
 pip install -e ".[browser]"
@@ -281,7 +321,31 @@ Then use browser commands inside Donovan:
 /browser open https://example.com
 /browser text
 /browser screenshot
+/browser minimize
 /browser close
+```
+
+When browser work is complete, Donovan is instructed to minimize the browser instead of closing it or leaving it visibly open.
+
+## Product Workflows
+
+Donovan includes higher-level workflows for users who want results without learning every technical detail first:
+
+- Contracts define a goal, allowed files, success criteria, and rollback expectations.
+- Recipes capture reusable workflows and can be run later.
+- Sandboxes let Donovan stage commands and changes before promotion.
+- Profiles save workspace preferences and can be locked for repeatable project behavior.
+- Evals and agent tests check whether Donovan is behaving correctly on repeatable tasks.
+- Workspace graphs, impact checks, and PR summaries help understand code changes before publishing.
+- Watchers and inbox triage keep track of follow-up work.
+- Router, stats, handoff, recovery, and doctor-ai commands help Donovan configure and explain itself.
+
+You can use slash commands directly, or describe what you want in normal language. For example:
+
+```text
+create a contract for fixing the browser companion setup
+set up a recipe named release-check that runs tests and summarizes risks
+configure router automatically for this project
 ```
 
 ## Memory, Skills, And Project Context
