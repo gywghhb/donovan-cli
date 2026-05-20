@@ -103,6 +103,11 @@ def test_browser_companion_extension_files(tmp_path: Path) -> None:
     assert (firefox_dir / "content.js").exists()
     assert "manifest_version\": 3" in (chromium_dir / "manifest.json").read_text(encoding="utf-8")
     assert "manifest_version\": 2" in (firefox_dir / "manifest.json").read_text(encoding="utf-8")
+    background = (chromium_dir / "background.js").read_text(encoding="utf-8")
+    assert "focus_browser" in background
+    assert "minimize_browser" in background
+    assert 'state: "normal"' in background
+    assert 'state: "minimized"' in background
     setup = service.setup_instructions("firefox", open_page=False)
     assert "about:debugging#/runtime/this-firefox" in setup
     assert "Chrome, Edge, Brave, Vivaldi, Opera, Arc, Chromium, or Firefox" in setup

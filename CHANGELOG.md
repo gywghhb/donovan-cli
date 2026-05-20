@@ -7,6 +7,10 @@
 - Fixed Browser Companion setup on Windows so `edge://`, `chrome://`, and other extension pages are opened through the actual browser executable instead of the generic URL handler.
 - Prevented the Windows "Get an app to open this link" dialog when setting up Edge or other browser-specific extension pages.
 - Browser Companion setup now clearly tells the user when Donovan could not open the extension page automatically and provides the page to open manually.
+- Isolated Playwright browser automation on a dedicated worker thread so `browser_open` cannot break the terminal prompt's asyncio loop on Windows.
+- Updated Browser Companion guidance so Donovan does not call the old Playwright `browser_open` tool just to open the extension page during companion setup.
+- Browser tools now bring the active tab/window forward while Donovan is working, then minimize the browser again after the browser work finishes.
+- Browser Companion now supports focus and minimize commands through the extension so already-open browser windows follow the same visible-while-working behavior.
 
 ## 0.1.14 - 2026-05-20
 

@@ -306,7 +306,7 @@ For users who want Donovan to work with the browser they already have open, use 
 /browser companion screenshot
 ```
 
-The setup command generates local WebExtension folders and opens the browser extension page. After the extension is loaded once, Donovan can inspect and interact with active Chrome, Edge, Brave, Vivaldi, Opera, Arc, Chromium, and Firefox tabs without launching a new browser or requiring remote debugging flags. Safari requires a separately packaged signed Safari Web Extension, so it is not supported by the unpacked companion yet.
+The setup command generates local WebExtension folders and opens the browser extension page. After the extension is loaded once, Donovan can inspect and interact with active Chrome, Edge, Brave, Vivaldi, Opera, Arc, Chromium, and Firefox tabs without launching a new browser or requiring remote debugging flags. When Donovan is actively working in a browser, it brings the tab/window forward so the user can see what is happening; when the browser work is finished, it minimizes the browser again. Safari requires a separately packaged signed Safari Web Extension, so it is not supported by the unpacked companion yet.
 
 For dedicated automation sessions, browser tools are optional and use Playwright. Install browser support with:
 
@@ -325,7 +325,7 @@ Then use browser commands inside Donovan:
 /browser close
 ```
 
-When browser work is complete, Donovan is instructed to minimize the browser instead of closing it or leaving it visibly open.
+When browser work starts, Donovan brings the browser forward. When browser work is complete, Donovan minimizes the browser instead of closing it or leaving it visibly open.
 
 ## Product Workflows
 

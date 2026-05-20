@@ -70,6 +70,35 @@ STATUS_TOP_PADDING_LINES = 1
 TURN_TOP_PADDING_LINES = 0
 TURN_BOTTOM_PADDING_LINES = 1
 
+BROWSER_COMPANION_WORK_TOOLS = {
+    "browser_companion_active_tab",
+    "browser_companion_snapshot",
+    "browser_companion_list_tabs",
+    "browser_companion_use_tab",
+    "browser_companion_click",
+    "browser_companion_type",
+    "browser_companion_screenshot",
+}
+BROWSER_PLAYWRIGHT_WORK_TOOLS = {
+    "browser_open",
+    "browser_connect_existing",
+    "browser_list_tabs",
+    "browser_use_tab",
+    "browser_screenshot",
+    "browser_click",
+    "browser_type",
+    "browser_press",
+    "browser_text",
+    "browser_html",
+    "browser_links",
+    "browser_back",
+    "browser_forward",
+    "browser_reload",
+    "browser_evaluate",
+    "browser_wait_for_selector",
+    "browser_wait",
+}
+
 
 def set_terminal_title(title: str = "Donovan Agent") -> None:
     """Set terminal tab title across all supported platforms."""
@@ -223,7 +252,23 @@ class DonovanAgentApp:
                 self._context_tokens = agent.last_context_tokens
                 self._context_window = agent.config.provider.context_window
             tools_panel = tools_used_panel(agent.last_tool_names)
-            if any(name.startswith("browser_") for name in agent.last_tool_names):
+            used_companion_browser = any(name in BROWSER_COMPANION_WORK_TOOLS for name in agent.last_tool_names)
+            used_playwright_browser = any(name in BROWSER_PLAYWRIGHT_WORK_TOOLS for name in agent.last_tool_names)
+            if used_companion_browser:
+                try:
+                    agent.browser_companion.minimize()
+                    self.product.record_timeline(
+                        "browser_minimized",
+                        "Browser Companion window minimized after browser work completed.",
+                        session_id=session_id,
+                    )
+                except Exception as exc:
+                    self.product.record_timeline(
+                        "browser_minimize_failed",
+                        str(exc),
+                        session_id=session_id,
+                    )
+            if used_playwright_browser:
                 try:
                     agent.browser_service.minimize()
                     self.product.record_timeline(

@@ -150,6 +150,19 @@ async function sendToTab(tabId, command) {
   }
 }
 
+async function focusTab(tab) {
+  if (!tab) return;
+  await call(api.tabs.update.bind(api.tabs), tab.id, {active: true});
+  if (api.windows && api.windows.update) {
+    await call(api.windows.update.bind(api.windows), tab.windowId, {focused: true, state: "normal"});
+  }
+}
+
+async function minimizeTab(tab) {
+  if (!tab || !api.windows || !api.windows.update) return;
+  await call(api.windows.update.bind(api.windows), tab.windowId, {state: "minimized"});
+}
+
 async function runCommand(command) {
   const tab = await activeTab();
   if (!tab && command.type !== "list_tabs") {
@@ -166,19 +179,27 @@ async function runCommand(command) {
       target = tabs.find(t => (t.title || "").toLowerCase().includes(needle) || (t.url || "").toLowerCase().includes(needle));
     }
     if (!target) return {success: false, error: `No tab matched ${command.tab}`};
-    await call(api.tabs.update.bind(api.tabs), target.id, {active: true});
-    if (api.windows && api.windows.update) {
-      await call(api.windows.update.bind(api.windows), target.windowId, {focused: true});
-    }
+    await focusTab(target);
     return {success: true, title: target.title || "", url: target.url || ""};
   }
+  if (command.type === "focus_browser") {
+    await focusTab(tab);
+    return {success: true, title: tab.title || "", url: tab.url || ""};
+  }
+  if (command.type === "minimize_browser") {
+    await minimizeTab(tab);
+    return {success: true, title: tab.title || "", url: tab.url || ""};
+  }
   if (command.type === "active_tab") {
+    await focusTab(tab);
     return {success: true, title: tab.title || "", url: tab.url || "", id: tab.id};
   }
   if (command.type === "screenshot") {
+    await focusTab(tab);
     const dataUrl = await call(api.tabs.captureVisibleTab.bind(api.tabs), tab.windowId, {format: "png"});
     return {success: true, title: tab.title || "", url: tab.url || "", dataUrl};
   }
+  await focusTab(tab);
   const result = await sendToTab(tab.id, command);
   return Object.assign({title: tab.title || "", url: tab.url || ""}, result || {});
 }
@@ -574,3 +595,11 @@ class BrowserCompanionService:
                 ),
             }
         return command.result or {"success": False, "error": "No result from browser companion."}
+
+    def focus(self) -> dict[str, Any]:
+        """Bring the active companion browser window forward while Donovan works."""
+        return self.command("focus_browser")
+
+    def minimize(self) -> dict[str, Any]:
+        """Minimize the active companion browser window after Donovan finishes browser work."""
+        return self.command("minimize_browser")
