@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.14 - 2026-05-20
+
+### Changed
+
+- Expanded Browser Companion from an Edge/Chrome-oriented setup into a cross-browser WebExtension workflow.
+- Generated separate companion extension folders for Chromium-family browsers and Firefox.
+- Added setup guidance for Chrome, Edge, Brave, Vivaldi, Opera, Arc, Chromium, and Firefox across Windows, macOS, and Linux.
+- Updated browser prompts, tool descriptions, README documentation, and tests to avoid Microsoft Edge-specific assumptions.
+
 ## 0.1.13 - 2026-05-20
 
 ### Added

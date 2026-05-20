@@ -29,3 +29,5 @@ def test_system_prompt_prefers_existing_browser_tabs() -> None:
     assert "do not open a new browser first" in SYSTEM_PROMPT
     assert "Browser Companion" in SYSTEM_PROMPT
     assert "without starting a new browser" in SYSTEM_PROMPT
+    assert "Firefox" in SYSTEM_PROMPT
+    assert "Brave" in SYSTEM_PROMPT

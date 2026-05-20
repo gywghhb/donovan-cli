@@ -472,7 +472,17 @@ def build_default_registry(config: DonovanAgentConfig) -> ToolRegistry:
         )
     )
     companion_tools = [
-        ("browser_companion_setup", "Create the Donovan Edge/Chrome extension files and show simple install steps.", {}, browser_companion_setup),
+        (
+            "browser_companion_setup",
+            "Create cross-browser Donovan companion extension files and show simple install steps.",
+            {
+                "browser": {
+                    "type": "string",
+                    "description": "Optional target browser: chrome, edge, brave, vivaldi, opera, arc, chromium, or firefox.",
+                }
+            },
+            browser_companion_setup,
+        ),
         ("browser_companion_start", "Start Donovan's local browser companion server for the installed extension.", {}, browser_companion_start),
         ("browser_companion_status", "Show whether the browser companion server and extension are connected.", {}, browser_companion_status),
         ("browser_companion_active_tab", "Read the active browser tab title and URL through the Donovan companion extension.", {}, browser_companion_active_tab),

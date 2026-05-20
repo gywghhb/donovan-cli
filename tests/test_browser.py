@@ -93,10 +93,19 @@ def test_browser_companion_extension_files(tmp_path: Path) -> None:
 
     service = BrowserCompanionService(tmp_path)
     extension_dir = service.install_extension_files()
-    assert (extension_dir / "manifest.json").exists()
-    assert (extension_dir / "background.js").exists()
-    assert (extension_dir / "content.js").exists()
-    assert "edge://extensions" in service.setup_instructions()
+    chromium_dir = extension_dir / "chromium"
+    firefox_dir = extension_dir / "firefox"
+    assert (chromium_dir / "manifest.json").exists()
+    assert (chromium_dir / "background.js").exists()
+    assert (chromium_dir / "content.js").exists()
+    assert (firefox_dir / "manifest.json").exists()
+    assert (firefox_dir / "background.js").exists()
+    assert (firefox_dir / "content.js").exists()
+    assert "manifest_version\": 3" in (chromium_dir / "manifest.json").read_text(encoding="utf-8")
+    assert "manifest_version\": 2" in (firefox_dir / "manifest.json").read_text(encoding="utf-8")
+    setup = service.setup_instructions("firefox")
+    assert "about:debugging#/runtime/this-firefox" in setup
+    assert "Chrome, Edge, Brave, Vivaldi, Opera, Arc, Chromium, or Firefox" in setup
 
 
 def test_browser_tools_include_companion_workflow() -> None:

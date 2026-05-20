@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import queue
+import sys
 import threading
 import uuid
 import webbrowser
@@ -11,10 +12,22 @@ from pathlib import Path
 from typing import Any
 
 
-MANIFEST = {
+COMPANION_VERSION = "0.1.14"
+SUPPORTED_BROWSERS = {
+    "chromium": "Chromium-family browsers: Chrome, Edge, Brave, Vivaldi, Opera, Arc, Chromium",
+    "chrome": "Google Chrome",
+    "edge": "Microsoft Edge",
+    "brave": "Brave",
+    "vivaldi": "Vivaldi",
+    "opera": "Opera",
+    "arc": "Arc",
+    "firefox": "Firefox",
+}
+
+CHROMIUM_MANIFEST = {
     "manifest_version": 3,
     "name": "Donovan Browser Companion",
-    "version": "0.1.13",
+    "version": COMPANION_VERSION,
     "description": "Lets Donovan Agent read and interact with the active browser tab with user permission.",
     "permissions": ["activeTab", "scripting", "tabs"],
     "host_permissions": ["<all_urls>", "http://127.0.0.1:8765/*", "http://localhost:8765/*"],
@@ -29,8 +42,53 @@ MANIFEST = {
     ],
 }
 
+FIREFOX_MANIFEST = {
+    "manifest_version": 2,
+    "name": "Donovan Browser Companion",
+    "version": COMPANION_VERSION,
+    "description": "Lets Donovan Agent read and interact with the active browser tab with user permission.",
+    "permissions": [
+        "activeTab",
+        "tabs",
+        "<all_urls>",
+        "http://127.0.0.1:8765/*",
+        "http://localhost:8765/*",
+    ],
+    "background": {"scripts": ["background.js"]},
+    "browser_action": {"default_title": "Donovan Companion"},
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["content.js"],
+            "run_at": "document_idle",
+        }
+    ],
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "donovan-browser-companion@tudor-iustin",
+            "strict_min_version": "109.0",
+        }
+    },
+}
+
 BACKGROUND_JS = r"""
 const SERVER = "http://127.0.0.1:8765";
+const api = globalThis.browser || globalThis.chrome;
+
+function call(fn, ...args) {
+  return new Promise((resolve, reject) => {
+    try {
+      const maybe = fn(...args, result => {
+        const err = api.runtime && api.runtime.lastError;
+        if (err) reject(new Error(err.message));
+        else resolve(result);
+      });
+      if (maybe && typeof maybe.then === "function") maybe.then(resolve, reject);
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
 
 async function post(path, body) {
   try {
@@ -53,13 +111,17 @@ async function getCommand() {
   }
 }
 
+async function queryTabs(query) {
+  return await call(api.tabs.query.bind(api.tabs), query);
+}
+
 async function activeTab() {
-  const tabs = await chrome.tabs.query({active: true, currentWindow: true});
+  const tabs = await queryTabs({active: true, currentWindow: true});
   return tabs[0] || null;
 }
 
 async function listTabs() {
-  const tabs = await chrome.tabs.query({});
+  const tabs = await queryTabs({});
   return tabs.map((tab, index) => ({
     index,
     id: tab.id,
@@ -70,12 +132,20 @@ async function listTabs() {
   }));
 }
 
+async function injectContentScript(tabId) {
+  if (api.scripting && api.scripting.executeScript) {
+    await call(api.scripting.executeScript.bind(api.scripting), {target: {tabId}, files: ["content.js"]});
+    return;
+  }
+  await call(api.tabs.executeScript.bind(api.tabs), tabId, {file: "content.js"});
+}
+
 async function sendToTab(tabId, command) {
   try {
-    return await chrome.tabs.sendMessage(tabId, command);
+    return await call(api.tabs.sendMessage.bind(api.tabs), tabId, command);
   } catch (err) {
-    await chrome.scripting.executeScript({target: {tabId}, files: ["content.js"]});
-    return await chrome.tabs.sendMessage(tabId, command);
+    await injectContentScript(tabId);
+    return await call(api.tabs.sendMessage.bind(api.tabs), tabId, command);
   }
 }
 
@@ -88,22 +158,24 @@ async function runCommand(command) {
     return {success: true, tabs: await listTabs()};
   }
   if (command.type === "use_tab") {
-    const tabs = await chrome.tabs.query({});
+    const tabs = await queryTabs({});
     const needle = String(command.tab || "").toLowerCase();
     let target = tabs.find((t, i) => String(i) === needle || String(t.id) === needle);
     if (!target) {
       target = tabs.find(t => (t.title || "").toLowerCase().includes(needle) || (t.url || "").toLowerCase().includes(needle));
     }
     if (!target) return {success: false, error: `No tab matched ${command.tab}`};
-    await chrome.tabs.update(target.id, {active: true});
-    await chrome.windows.update(target.windowId, {focused: true});
+    await call(api.tabs.update.bind(api.tabs), target.id, {active: true});
+    if (api.windows && api.windows.update) {
+      await call(api.windows.update.bind(api.windows), target.windowId, {focused: true});
+    }
     return {success: true, title: target.title || "", url: target.url || ""};
   }
   if (command.type === "active_tab") {
     return {success: true, title: tab.title || "", url: tab.url || "", id: tab.id};
   }
   if (command.type === "screenshot") {
-    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {format: "png"});
+    const dataUrl = await call(api.tabs.captureVisibleTab.bind(api.tabs), tab.windowId, {format: "png"});
     return {success: true, title: tab.title || "", url: tab.url || "", dataUrl};
   }
   const result = await sendToTab(tab.id, command);
@@ -123,11 +195,14 @@ async function tick() {
 }
 
 setInterval(tick, 400);
-chrome.runtime.onInstalled.addListener(() => tick());
-chrome.action.onClicked.addListener(() => tick());
+if (api.runtime && api.runtime.onInstalled) api.runtime.onInstalled.addListener(() => tick());
+const action = api.action || api.browserAction;
+if (action && action.onClicked) action.onClicked.addListener(() => tick());
 """
 
 CONTENT_JS = r"""
+const api = globalThis.browser || globalThis.chrome;
+
 function nodePath(el) {
   if (!el) return "";
   if (el.id) return `#${CSS.escape(el.id)}`;
@@ -163,7 +238,7 @@ function snapshot() {
   };
 }
 
-chrome.runtime.onMessage.addListener((command, sender, sendResponse) => {
+api.runtime.onMessage.addListener((command, sender, sendResponse) => {
   (async () => {
     if (command.type === "snapshot") return snapshot();
     if (command.type === "click") {
@@ -213,7 +288,9 @@ class CompanionCommand:
 class BrowserCompanionService:
     def __init__(self, data_dir: Path, host: str = "127.0.0.1", port: int = 8765) -> None:
         self.data_dir = Path(data_dir)
-        self.extension_dir = self.data_dir / "browser_companion_extension"
+        self.extension_root = self.data_dir / "browser_companion_extensions"
+        self.extension_dir = self.extension_root / "chromium"
+        self.firefox_extension_dir = self.extension_root / "firefox"
         self.host = host
         self.port = port
         self._server: ThreadingHTTPServer | None = None
@@ -228,26 +305,90 @@ class BrowserCompanionService:
         return f"http://{self.host}:{self.port}"
 
     def install_extension_files(self) -> Path:
-        self.extension_dir.mkdir(parents=True, exist_ok=True)
-        (self.extension_dir / "manifest.json").write_text(json.dumps(MANIFEST, indent=2), encoding="utf-8")
-        (self.extension_dir / "background.js").write_text(BACKGROUND_JS, encoding="utf-8")
-        (self.extension_dir / "content.js").write_text(CONTENT_JS, encoding="utf-8")
-        return self.extension_dir
+        self._write_extension(self.extension_dir, CHROMIUM_MANIFEST)
+        self._write_extension(self.firefox_extension_dir, FIREFOX_MANIFEST)
+        return self.extension_root
 
-    def setup_instructions(self) -> str:
-        path = self.install_extension_files()
+    def _write_extension(self, path: Path, manifest: dict[str, Any]) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+        (path / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        (path / "background.js").write_text(BACKGROUND_JS, encoding="utf-8")
+        (path / "content.js").write_text(CONTENT_JS, encoding="utf-8")
+
+    def setup_instructions(self, browser: str | None = None) -> str:
+        self.install_extension_files()
+        browser_key = self._normalize_browser(browser)
+        self._open_extension_page(browser_key)
+        return self._format_setup_instructions(browser_key)
+
+    def _normalize_browser(self, browser: str | None) -> str:
+        key = (browser or "chromium").strip().lower()
+        aliases = {
+            "default": "chromium",
+            "chrome": "chrome",
+            "google": "chrome",
+            "google-chrome": "chrome",
+            "msedge": "edge",
+            "microsoft-edge": "edge",
+            "ff": "firefox",
+            "mozilla": "firefox",
+            "mozilla-firefox": "firefox",
+        }
+        key = aliases.get(key, key)
+        return key if key in SUPPORTED_BROWSERS else "chromium"
+
+    def _extension_page_url(self, browser: str) -> str:
+        if browser == "firefox":
+            return "about:debugging#/runtime/this-firefox"
+        if browser == "edge":
+            return "edge://extensions/"
+        if browser == "brave":
+            return "brave://extensions/"
+        if browser == "vivaldi":
+            return "vivaldi://extensions/"
+        if browser == "opera":
+            return "opera://extensions/"
+        if browser == "arc":
+            return "arc://extensions/"
+        return "chrome://extensions/"
+
+    def _open_extension_page(self, browser: str) -> None:
         try:
-            webbrowser.open("edge://extensions/")
+            webbrowser.open(self._extension_page_url(browser))
         except Exception:
             pass
+
+    def _format_setup_instructions(self, browser: str) -> str:
+        chromium_path = self.extension_dir
+        firefox_path = self.firefox_extension_dir
+        page_url = self._extension_page_url(browser)
+        platform_note = (
+            "On macOS, Linux, or Windows, use the extension folder that matches your browser."
+        )
+        safari_note = (
+            "Safari uses a different signed Safari Web Extension package, so Donovan cannot load "
+            "this unpacked extension directly there yet. Use Chrome, Edge, Brave, Vivaldi, Opera, "
+            "Arc, Chromium, or Firefox for companion-mode tab control."
+        )
         return (
-            f"Extension folder: {path}\n\n"
-            "In Microsoft Edge:\n"
-            "1. Open edge://extensions/.\n"
+            f"Extension folders:\n"
+            f"- Chromium-family: {chromium_path}\n"
+            f"- Firefox: {firefox_path}\n\n"
+            f"Selected browser: {SUPPORTED_BROWSERS.get(browser, SUPPORTED_BROWSERS['chromium'])}\n"
+            f"Open this extension page if it did not open automatically: {page_url}\n\n"
+            "Chromium-family setup:\n"
+            "1. Open your browser's Extensions page.\n"
             "2. Turn on Developer mode.\n"
             "3. Click Load unpacked.\n"
-            "4. Select the extension folder above.\n"
-            "5. Run /browser companion start, then use /browser companion active or ask Donovan about the active tab."
+            "4. Select the Chromium-family extension folder above.\n\n"
+            "Firefox setup:\n"
+            "1. Open about:debugging#/runtime/this-firefox.\n"
+            "2. Click Load Temporary Add-on.\n"
+            "3. Select manifest.json inside the Firefox extension folder above.\n\n"
+            f"{platform_note}\n"
+            f"{safari_note}\n\n"
+            "Then run /browser companion start and use /browser companion active, "
+            "/browser companion snapshot, or ask Donovan about the active tab."
         )
 
     def start(self) -> None:
@@ -322,8 +463,11 @@ class BrowserCompanionService:
         return {
             "running": self._server is not None,
             "url": self.url,
-            "extension_dir": str(self.extension_dir),
+            "platform": sys.platform,
+            "chromium_extension_dir": str(self.extension_dir),
+            "firefox_extension_dir": str(self.firefox_extension_dir),
             "extension_connected": connected,
+            "supported_browsers": list(SUPPORTED_BROWSERS),
         }
 
     def command(self, command_type: str, **kwargs: Any) -> dict[str, Any]:
@@ -333,5 +477,11 @@ class BrowserCompanionService:
         command = CompanionCommand(id=command_id, payload=payload)
         self._queue.put(command)
         if not command.event.wait(timeout=10):
-            return {"success": False, "error": "Browser companion did not respond. Make sure the extension is installed and enabled."}
+            return {
+                "success": False,
+                "error": (
+                    "Browser companion did not respond. Make sure the matching extension is "
+                    "installed and enabled in your current browser."
+                ),
+            }
         return command.result or {"success": False, "error": "No result from browser companion."}

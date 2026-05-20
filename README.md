@@ -102,7 +102,7 @@ donovan doctor
 - Local Python execution for scripts and analysis
 - Tavily web search integration
 - Browser automation with optional Playwright support
-- Browser Companion for working with already-open Edge and Chrome tabs without remote debugging
+- Browser Companion for working with already-open Chrome, Edge, Brave, Vivaldi, Opera, Arc, Chromium, and Firefox tabs without remote debugging
 - MCP integration for external tools, resources, and prompts
 - SQLite-backed sessions, messages, tool calls, audit logs, memories, and learned skills
 - Planning, thinking summaries, scheduled tasks, checkpoints, subagents, and activity stream
@@ -295,7 +295,7 @@ Donovan supports two browser workflows.
 For users who want Donovan to work with the browser they already have open, use Browser Companion:
 
 ```text
-/browser companion setup
+/browser companion setup [chrome|edge|brave|vivaldi|opera|arc|chromium|firefox]
 /browser companion start
 /browser companion active
 /browser companion snapshot
@@ -306,7 +306,7 @@ For users who want Donovan to work with the browser they already have open, use 
 /browser companion screenshot
 ```
 
-The setup command generates a local extension and opens the browser extension page. After the extension is loaded once, Donovan can inspect and interact with active Edge and Chrome tabs without launching a new browser or requiring remote debugging flags.
+The setup command generates local WebExtension folders and opens the browser extension page. After the extension is loaded once, Donovan can inspect and interact with active Chrome, Edge, Brave, Vivaldi, Opera, Arc, Chromium, and Firefox tabs without launching a new browser or requiring remote debugging flags. Safari requires a separately packaged signed Safari Web Extension, so it is not supported by the unpacked companion yet.
 
 For dedicated automation sessions, browser tools are optional and use Playwright. Install browser support with:
 

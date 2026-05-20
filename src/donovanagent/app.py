@@ -896,7 +896,8 @@ class DonovanAgentApp:
             self.console.print(error_panel(
                 "Browser commands:\n"
                 "  /browser open <url>\n"
-                "  /browser companion setup|start|status|active|snapshot|tabs|use|click|type|screenshot\n"
+                "  /browser companion setup [chrome|edge|brave|vivaldi|opera|arc|chromium|firefox]\n"
+                "  /browser companion start|status|active|snapshot|tabs|use|click|type|screenshot\n"
                 "  /browser connect [cdp_endpoint] [tab]\n"
                 "  /browser tabs\n"
                 "  /browser use <tab-index|title|url>\n"
@@ -1008,7 +1009,8 @@ class DonovanAgentApp:
         cmd = parts[0] if parts else "status"
         try:
             if cmd == "setup":
-                self.console.print(info_panel(companion.setup_instructions(), title="Browser Companion Setup"))
+                browser = parts[1] if len(parts) >= 2 else None
+                self.console.print(info_panel(companion.setup_instructions(browser), title="Browser Companion Setup"))
             elif cmd == "start":
                 companion.start()
                 self.console.print(info_panel("Browser companion server started.", title="Browser Companion"))
@@ -1041,7 +1043,7 @@ class DonovanAgentApp:
                 result = companion.command("screenshot")
                 self.console.print(info_panel("Captured." if result.get("success") else str(result.get("error")), title="Browser Companion"))
             else:
-                self.console.print(error_panel("Usage: /browser companion setup|start|status|active|snapshot|tabs|use|click|type|screenshot"))
+                self.console.print(error_panel("Usage: /browser companion setup [browser]|start|status|active|snapshot|tabs|use|click|type|screenshot"))
         except Exception as exc:
             self.console.print(error_panel(str(exc)))
 

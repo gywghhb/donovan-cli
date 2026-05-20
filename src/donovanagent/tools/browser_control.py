@@ -14,8 +14,16 @@ def browser_companion_setup(ctx: ToolExecutionContext, args: dict[str, object]) 
     if error:
         return error
     try:
-        body = svc.setup_instructions()
-        return ToolResult(True, body, {"extension_dir": str(svc.extension_dir)})
+        browser = str(args.get("browser", "") or "") or None
+        body = svc.setup_instructions(browser)
+        return ToolResult(
+            True,
+            body,
+            {
+                "chromium_extension_dir": str(svc.extension_dir),
+                "firefox_extension_dir": str(svc.firefox_extension_dir),
+            },
+        )
     except Exception as exc:
         return ToolResult(False, f"Failed to set up browser companion: {exc}")
 
