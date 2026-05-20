@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import json
 import queue
+import shutil
+import subprocess
 import sys
 import threading
 import uuid
-import webbrowser
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
 
-COMPANION_VERSION = "0.1.14"
+COMPANION_VERSION = "0.1.15"
 SUPPORTED_BROWSERS = {
     "chromium": "Chromium-family browsers: Chrome, Edge, Brave, Vivaldi, Opera, Arc, Chromium",
     "chrome": "Google Chrome",
@@ -315,11 +316,11 @@ class BrowserCompanionService:
         (path / "background.js").write_text(BACKGROUND_JS, encoding="utf-8")
         (path / "content.js").write_text(CONTENT_JS, encoding="utf-8")
 
-    def setup_instructions(self, browser: str | None = None) -> str:
+    def setup_instructions(self, browser: str | None = None, open_page: bool = True) -> str:
         self.install_extension_files()
         browser_key = self._normalize_browser(browser)
-        self._open_extension_page(browser_key)
-        return self._format_setup_instructions(browser_key)
+        opened = self._open_extension_page(browser_key) if open_page else False
+        return self._format_setup_instructions(browser_key, opened=opened)
 
     def _normalize_browser(self, browser: str | None) -> str:
         key = (browser or "chromium").strip().lower()
@@ -352,16 +353,103 @@ class BrowserCompanionService:
             return "arc://extensions/"
         return "chrome://extensions/"
 
-    def _open_extension_page(self, browser: str) -> None:
+    def _open_extension_page(self, browser: str) -> bool:
+        url = self._extension_page_url(browser)
+        command = self._browser_open_command(browser, url)
+        if not command:
+            return False
         try:
-            webbrowser.open(self._extension_page_url(browser))
+            subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
         except Exception:
-            pass
+            return False
 
-    def _format_setup_instructions(self, browser: str) -> str:
+    def _browser_open_command(self, browser: str, url: str) -> list[str] | None:
+        if sys.platform == "win32":
+            return self._windows_browser_command(browser, url)
+        if sys.platform == "darwin":
+            return self._macos_browser_command(browser, url)
+        return self._linux_browser_command(browser, url)
+
+    def _windows_browser_command(self, browser: str, url: str) -> list[str] | None:
+        names = {
+            "chrome": ["chrome.exe", "chrome"],
+            "chromium": ["chrome.exe", "chrome", "chromium.exe", "chromium"],
+            "edge": ["msedge.exe", "msedge"],
+            "brave": ["brave.exe", "brave"],
+            "vivaldi": ["vivaldi.exe", "vivaldi"],
+            "opera": ["opera.exe", "opera"],
+            "firefox": ["firefox.exe", "firefox"],
+        }.get(browser, ["chrome.exe", "chrome", "msedge.exe", "msedge"])
+        for name in names:
+            path = shutil.which(name)
+            if path:
+                return [path, url]
+        common_paths = {
+            "edge": [
+                r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+                r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+            ],
+            "chrome": [
+                r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            ],
+            "firefox": [
+                r"C:\Program Files\Mozilla Firefox\firefox.exe",
+                r"C:\Program Files (x86)\Mozilla Firefox\firefox.exe",
+            ],
+            "brave": [
+                r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+                r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
+            ],
+        }
+        for path_text in common_paths.get(browser, []):
+            path = Path(path_text)
+            if path.exists():
+                return [str(path), url]
+        return None
+
+    def _macos_browser_command(self, browser: str, url: str) -> list[str] | None:
+        apps = {
+            "chrome": "Google Chrome",
+            "chromium": "Chromium",
+            "edge": "Microsoft Edge",
+            "brave": "Brave Browser",
+            "vivaldi": "Vivaldi",
+            "opera": "Opera",
+            "arc": "Arc",
+            "firefox": "Firefox",
+        }
+        app = apps.get(browser)
+        if not app:
+            return None
+        return ["open", "-a", app, url]
+
+    def _linux_browser_command(self, browser: str, url: str) -> list[str] | None:
+        names = {
+            "chrome": ["google-chrome", "google-chrome-stable", "chrome"],
+            "chromium": ["chromium", "chromium-browser", "google-chrome", "google-chrome-stable"],
+            "edge": ["microsoft-edge", "microsoft-edge-stable", "msedge"],
+            "brave": ["brave-browser", "brave"],
+            "vivaldi": ["vivaldi", "vivaldi-stable"],
+            "opera": ["opera"],
+            "firefox": ["firefox"],
+        }.get(browser, ["chromium", "chromium-browser", "google-chrome", "firefox"])
+        for name in names:
+            path = shutil.which(name)
+            if path:
+                return [path, url]
+        return None
+
+    def _format_setup_instructions(self, browser: str, opened: bool) -> str:
         chromium_path = self.extension_dir
         firefox_path = self.firefox_extension_dir
         page_url = self._extension_page_url(browser)
+        opened_text = (
+            "Donovan opened the matching extension page automatically."
+            if opened
+            else "Donovan could not open the extension page automatically. Open it manually in your browser."
+        )
         platform_note = (
             "On macOS, Linux, or Windows, use the extension folder that matches your browser."
         )
@@ -375,7 +463,8 @@ class BrowserCompanionService:
             f"- Chromium-family: {chromium_path}\n"
             f"- Firefox: {firefox_path}\n\n"
             f"Selected browser: {SUPPORTED_BROWSERS.get(browser, SUPPORTED_BROWSERS['chromium'])}\n"
-            f"Open this extension page if it did not open automatically: {page_url}\n\n"
+            f"{opened_text}\n"
+            f"Extension page: {page_url}\n\n"
             "Chromium-family setup:\n"
             "1. Open your browser's Extensions page.\n"
             "2. Turn on Developer mode.\n"

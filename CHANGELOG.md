@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.15 - 2026-05-20
+
+### Fixed
+
+- Fixed Browser Companion setup on Windows so `edge://`, `chrome://`, and other extension pages are opened through the actual browser executable instead of the generic URL handler.
+- Prevented the Windows "Get an app to open this link" dialog when setting up Edge or other browser-specific extension pages.
+- Browser Companion setup now clearly tells the user when Donovan could not open the extension page automatically and provides the page to open manually.
+
 ## 0.1.14 - 2026-05-20
 
 ### Changed
