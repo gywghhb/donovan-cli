@@ -19,6 +19,30 @@ Developed by **Tudor Iustin**.
   </a>
 </p>
 
+## As Seen On
+
+<a href="https://launchllama.co?utm_source=badge&utm_medium=referral" target="_blank" rel="noopener">
+  <img src="https://speaktechenglish.com/wp-content/uploads/2026/04/Screenshot_2026-04-09_at_17.40.44-removebg-preview.png"
+    alt="Featured on Launch Llama"
+    width="200" height="50" />
+</a>
+
+## Quick Install
+
+macOS, Linux, Git Bash, or WSL:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tudor-22/donovan-agent/main/install.sh | bash
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/tudor-22/donovan-agent/main/install.ps1 | iex"
+```
+
+The scripts check Python, clone the repo if needed, create a virtual environment, install Donovan, optionally install browser support, and run first-time setup.
+
 ## Start Here
 
 New users should install Donovan, run setup, choose a provider, approve a workspace, and then launch the interactive agent:
@@ -34,32 +58,6 @@ The setup wizard guides you through:
 - Optional Tavily web search
 - Workspace permissions
 - Tool and approval settings
-
-## One-Command Install
-
-Copy and paste:
-
-```bash
-python -c "import subprocess,sys; repo='git+https://github.com/tudor-22/donovan-agent.git'; subprocess.check_call([sys.executable,'-m','pip','install','--user',repo]); subprocess.check_call([sys.executable,'-m','donovanagent','setup']); print('Installed. Start Donovan with: python -m donovanagent')"
-```
-
-Requires Python 3.11 or newer.
-
-## Script Install
-
-macOS, Linux, Git Bash, or WSL:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/tudor-22/donovan-agent/main/install.sh | bash
-```
-
-Windows PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/tudor-22/donovan-agent/main/install.ps1 | iex"
-```
-
-The scripts check Python, clone the repo if needed, create a virtual environment, install Donovan, optionally install browser support, and run first-time setup.
 
 ## Quick Start
 
@@ -254,7 +252,7 @@ donovan update                  Show update instructions
 
 | Goal | Start here |
 | --- | --- |
-| Install Donovan | [One-Command Install](#one-command-install) |
+| Install Donovan | [Quick Install](#quick-install) |
 | Configure a model | [Providers](#providers) |
 | Learn the command surface | [Core Commands](#core-commands) |
 | Understand permissions | [Security Defaults](#security-defaults) |
