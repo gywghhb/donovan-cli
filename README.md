@@ -43,22 +43,6 @@ powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/tud
 
 The scripts check Python, clone the repo if needed, create a virtual environment, install Donovan, optionally install browser support, and run first-time setup.
 
-## Start Here
-
-New users should install Donovan, run setup, choose a provider, approve a workspace, and then launch the interactive agent:
-
-```bash
-donovan
-```
-
-The setup wizard guides you through:
-
-- LLM provider selection
-- API key and model configuration
-- Optional Tavily web search
-- Workspace permissions
-- Tool and approval settings
-
 ## Quick Start
 
 Launch the interactive agent:
