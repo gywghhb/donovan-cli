@@ -8,13 +8,11 @@
 
 **Donovan Agent** is a terminal-native agentic assistant for developers. It can chat with an LLM provider, inspect and edit files, run shell commands, execute local Python, search the web, use browser automation, connect MCP servers, remember project context, manage checkpoints, and help work through real coding tasks from your command line.
 
-Developed by **Tudor Iustin**.
-
 <p align="center">
   <a href="https://buymeacoffee.com/tudor22">
     <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?style=for-the-badge&logo=buymeacoffee" alt="Buy Me a Coffee" />
   </a>
-  <a href="https://ko-fi.com/tudor22">
+  <a href="https://ko-fi.com/donovanai">
     <img src="https://img.shields.io/badge/Ko--fi-support-ff5e5b?style=for-the-badge&logo=kofi&logoColor=white" alt="Ko-fi" />
   </a>
 </p>
@@ -490,3 +488,5 @@ Contributions, bug reports, and ideas are welcome.
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
+
+Copyright 2026 Donovan AI.
