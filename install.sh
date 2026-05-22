@@ -4,17 +4,17 @@
 # Works on macOS, Linux, and Windows (Git Bash / WSL).
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/tudor-22/donovan-agent/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/tudor-22/donovan-cli/main/install.sh | bash
 #
 # Or clone and run locally:
-#   git clone https://github.com/tudor-22/donovan-agent.git
+#   git clone https://github.com/tudor-22/donovan-cli.git
 #   cd donovan
 #   bash install.sh
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
-REPO_URL="${DONOVAN_REPO_URL:-https://github.com/tudor-22/donovan-agent}"
-PROJECT="donovan-agent"
+REPO_URL="${DONOVAN_REPO_URL:-https://github.com/tudor-22/donovan-cli}"
+PROJECT="donovan-cli"
 
 # ──────────────────────────────────────────────
 # Colors

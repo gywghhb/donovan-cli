@@ -1,10 +1,10 @@
 # donovan Windows install script
 #
 # Copy-paste install:
-#   powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/tudor-22/donovan-agent/main/install.ps1 | iex"
+#   powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/tudor-22/donovan-cli/main/install.ps1 | iex"
 
-$RepoUrl = if ($env:DONOVAN_REPO_URL) { $env:DONOVAN_REPO_URL } else { "https://github.com/tudor-22/donovan-agent" }
-$Project = "donovan-agent"
+$RepoUrl = if ($env:DONOVAN_REPO_URL) { $env:DONOVAN_REPO_URL } else { "https://github.com/tudor-22/donovan-cli" }
+$Project = "donovan-cli"
 
 function Write-Step($msg) { Write-Host "==> $msg" -ForegroundColor Green }
 function Write-Err($msg)  { Write-Host "==> $msg" -ForegroundColor Red }
