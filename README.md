@@ -21,11 +21,8 @@ Developed by **Tudor Iustin**.
 
 ## As Seen On
 
-<a href="https://launchllama.co?utm_source=badge&utm_medium=referral" target="_blank" rel="noopener">
-  <img src="https://speaktechenglish.com/wp-content/uploads/2026/04/Screenshot_2026-04-09_at_17.40.44-removebg-preview.png"
-    alt="Featured on Launch Llama"
-    width="200" height="50" />
-</a>
+<p align="center"> <a href="https://launchllama.co?utm_source=badge&utm_medium=referral" target="_blank" rel="noopener"> <img src="https://speaktechenglish.com/wp-content/uploads/2026/04/Screenshot_2026-04-09_at_17.40.44-removebg-preview.png" alt="Featured on Launch Llama" height="40" /> </a> &nbsp;&nbsp;&nbsp; </a> &nbsp;&nbsp;&nbsp; <a href="https://news.google.com/" target="_blank" rel="noopener"> <img src="https://upload.wikimedia.org/wikipedia/commons/d/da/Google_News_icon.svg" alt="Google News" height="40" /> </a> &nbsp;&nbsp;&nbsp; </a> &nbsp;&nbsp;&nbsp; <a href="https://backlinklog.com/listing/tudoriustin.com?utm_source=backlinklog&utm_medium=badge" target="_blank" rel="noopener"> <img src="https://backlinklog.com/badge/tudoriustin.com.svg" alt="Listed on BacklinkLog" height="40" /> </a> &nbsp;&nbsp;&nbsp; <a href="https://www.shipit.buzz/products/donovan-agent?ref=badge" target="_blank" rel="noopener noreferrer"> <img src="https://www.shipit.buzz/api/products/donovan-agent/badge?theme=light" alt="Featured on Shipit" height="40" /> </a> </p> <br>
+
 
 ## Quick Install
 
